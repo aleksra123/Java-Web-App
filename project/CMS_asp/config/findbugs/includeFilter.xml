@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<FindBugsFilter>
+    <Match>
+        <Package name="src.test.java.pt.isep.cms.students.*"/>
+    </Match>
+    <Match>
+          <Class name="src.test.java.pt.isep.cms.students.*" />
+          <Bug code="IC" />
+    </Match>
+    <echo message="Hello, world"/>
+
+</FindBugsFilter>

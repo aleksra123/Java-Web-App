@@ -1,0 +1,352 @@
+#!/usr/bin/env groovy
+
+pipeline
+{
+	agent any
+	stages
+	{
+		stage('docker-compose')
+		{
+			steps{
+				script{
+					if(isUnix())
+					{
+						dir('project')
+						{
+							//With this first command the docker will reload the dump.sql and therby delete all modifications.
+						  //sh 'docker-compose down -v'
+							sh 'docker-compose build'
+							sh 'docker-compose up -d'
+						}
+					}else{
+						dir('project')
+						{
+							// bat 'docker-compose down -v'
+							bat 'docker-compose build'
+							bat 'docker-compose up -d'
+						}
+					}
+				}
+			}
+		}
+		stage('Build + javadoc + war')
+		{
+			steps
+			{
+				script{
+					if(isUnix())
+					{
+						dir('project/CMS_asp')
+						{
+							sh 'gradle build'
+							sh 'gradle war --info'
+							sh 'gradle javadoc'
+						}
+					}else
+					{
+						dir('project/CMS_asp')
+						{
+							bat 'gradle build'
+							bat 'gradle war'
+							bat 'gradle javadoc'
+						}
+					}
+			  }
+			}
+		}
+
+		stage('Submission Folder and pdf-report')
+		{
+			steps
+			{
+				script{
+					if(isUnix())
+					{
+						sh "mkdir -p project/MoodleSubmission"
+						sh 'docker run -v `pwd`:/source jagregory/pandoc -f markdown -t latex project/readme.md -o project/MoodleSubmission/ProjectReport.pdf'
+					}else{
+						bat "mkdir -p project/MoodleSubmission"
+						bat 'docker run -v `pwd`:/source jagregory/pandoc -f markdown -t latex project/readme.md -o project/MoodleSubmission/ProjectReport.pdf'
+					}
+				}
+			}
+		}
+
+		stage('Smoke Test'){
+			steps{
+				script{
+					if(isUnix()){
+						sh "curl --user aleksanderasp:12qwas http://127.0.0.1:8080/CMS_asp-1.0/#!CwStudents"
+					} else {
+						bat "curl --user aleksanderasp:12qwas http://127.0.0.1:8080/CMS_asp-1.0/#!CwStudents"
+					}
+				}
+			}
+		}
+
+		stage('First parallel')
+		{
+			parallel
+			{
+				stage('Archive Files')
+				{
+					steps
+					{
+						dir('project/CMS_asp')
+						{
+							archiveArtifacts 'build/libs/CMS_asp-1.0.war'
+						}
+					}
+				}
+				stage('Unit Test')
+				{
+					steps
+					{
+						script{
+							if(isUnix()){
+							dir('project/CMS_asp')
+								{
+									sh 'gradle cleanTest test'
+									publishHTML([allowMissing: false, alwaysLinkToLastBuild: false, keepAll: false, reportDir: 'build/reports/test', reportFiles: 'index.html', reportName: 'HTML Report - Unit Test', reportTitles: ''])
+									junit allowEmptyResults: true, testResults: 'build/test-results/test/*.xml'
+								}
+							}else{
+								dir('project/CMS_asp')
+								{
+									bat 'gradle cleanTest test'
+									publishHTML([allowMissing: false, alwaysLinkToLastBuild: false, keepAll: false, reportDir: 'build/reports/test', reportFiles: 'index.html', reportName: 'HTML Report - Unit Test', reportTitles: ''])
+									junit allowEmptyResults: true, testResults: 'build/test-results/test/*.xml'
+								}
+							}
+						}
+					}
+				}
+				stage("FindBugs") {
+					steps{
+						step([$class: 'FindBugsPublisher',
+							healthy: '20',
+							pattern: '**\\CMS_asp\\build\\reports\\findbugs\\main.xml',
+							//pattern: '**/main.xml',
+							unHealthy: '50',
+							canRunOnFailed: true
+						])
+					}
+				}
+				stage("Checkstyle") {
+					steps{
+						step([$class: 'CheckStylePublisher',
+							canRunOnFailed: true,
+							defaultEncoding: '',
+							healthy: '20',  //healthy om det er mindre warnings enn 20
+							pattern: '**\\CMS_asp\\build\\reports\\checkstyle\\main.xml',
+							unHealthy: '50', //uhealthy om der er mer warnings enn
+						])
+					}
+				}
+				stage('Integration Test')  // See 2.3 of the project description
+				{
+					steps
+					{
+						script{
+							if(isUnix()){
+								dir('project/CMS_asp')
+								{
+									sh 'gradle cleanIntegrationTest integrationTest' //hmm
+										publishHTML([allowMissing: false, alwaysLinkToLastBuild: false, keepAll: false, reportDir: 'build/reports/integrationTest', reportFiles: 'index.html', reportName: 'HTML Report - Integration Test', reportTitles: ''])
+								}
+							}else{
+								dir('project/CMS_asp')
+								{
+									bat 'gradle cleanIntegrationTest integrationTest'
+										publishHTML([allowMissing: false, alwaysLinkToLastBuild: false, keepAll: false, reportDir: 'build/reports/integrationTest', reportFiles: 'index.html', reportName: 'HTML Report - Integration Test', reportTitles: ''])
+								}
+							}
+						}
+					}
+				}
+
+				stage('Coverage report')
+				{
+						steps
+					{
+
+						step([$class: 'JacocoPublisher',
+							buildOverBuild: true, //this line will Fail the build if coverage degrades more than the delta thresholds
+						/*minimumInstructionCoverage: '50', //minimum score of instruction coverage
+							maximumInstructionCoverage: '100',
+							classPattern: '**\\CMS_asp\\build\\classes\\java\\test\\pt\\isep\\cms\\students\\*.class',
+							execPattern: '**\\CMS_asp\\build\\jacoco\\integrationTest.exec',
+							sourcePattern: '**\\CMS_asp\\src\\test\\java\\pt\\isep\\cms\\students\\*.java',
+							maximumBranchCoverage: '100',
+							maximumClassCoverage: '100',
+							maximumComplexityCoverage: '100',
+							maximumInstructionCoverage: '100',
+							maximumLineCoverage: '100',
+							maximumMethodCoverage: '100',
+							minimumBranchCoverage: '50',
+							minimumClassCoverage: '50',
+							minimumComplexityCoverage: '50',
+							minimumInstructionCoverage: '50',
+							minimumLineCoverage: '50',
+							minimumMethodCoverage: '50',*/
+							healthy: '10',
+							unhealthy: '30',
+							deltaBranchCoverage: '20',
+							deltaClassCoverage: '20',
+							deltaComplexityCoverage: '20',
+							deltaInstructionCoverage: '20',
+							deltaLineCoverage: '20',
+							deltaMethodCoverage: '20',
+						])
+						dir('project/CMS_asp')
+						{
+							jacoco()
+						}
+					}
+				}
+				stage('Copy war file to tomcat')
+				{
+					steps
+					{
+						script{
+							if(isUnix()){
+								dir('project/CMS_asp')
+								{
+									sh 'cp build/libs/*.war /Users/aleksanderasp/apache-tomcat-7.0.91/webapps'
+									sh ("curl --user aleksanderasp:12qwas http://localhost:8080/")
+								}
+							}else{
+								dir('project/CMS_asp')
+								{
+									bat 'copy /y build\\libs\\*.war C:\\Users\\Public\\apache-tomcat-7.0.91\\webapps'
+									bat ("curl --user LoneBekk:hohoho http://localhost:8080/")
+								}
+							}
+						}
+					}
+				}
+			}// parallel
+		}// Stage First parallel
+		stage('Mutation Tests')
+		{
+			steps
+			{
+				script
+				{
+					if(isUnix()){
+						dir('project/CMS_asp')
+						{
+							sh 'gradle pitest'
+							publishHTML([allowMissing: false, alwaysLinkToLastBuild: false, keepAll: false, reportDir: '\\build\\reports\\pitest', reportFiles: 'index.html', reportName: 'HTML Report - Pit Test Coverage Report', reportTitles: ''])
+						}
+					}else{
+						dir('project/CMS_asp')
+						{
+							bat 'gradle pitest'
+							publishHTML([allowMissing: false, alwaysLinkToLastBuild: false, keepAll: false, reportDir: '\\build\\reports\\pitest', reportFiles: 'index.html', reportName: 'HTML Report - Pit Test Coverage Report', reportTitles: ''])
+						}
+					}
+				}
+			}
+		}
+		// stage('Generate cucumber report')
+		// {
+		// 	steps
+		// 	{
+		// 		dir('project/CMS_asp')
+		// 		{
+		// 				//sh ('$PWD')
+		// 				cucumber([ jsonReportDirectory: 'cucumber/build/target', fileIncludePattern: '*.json', buildStatus: 'UNSTABLE' ])
+		// 				/*
+		// 				cucumber buildStatus: 'UNSTABLE',
+		// 						fileIncludePattern: '/cucumber.json',
+		// 						trendsLimit: 10,
+		// 						classifications: [
+		// 								[
+		// 										'key'  : 'Browser',
+		// 										'value': 'Chrome'
+		// 								]
+		// 						]
+		// 				*/
+		// 		}
+		// 	}
+		// }
+		stage('Second parallel')
+		{
+			parallel
+			{
+				stage('Email notification')
+				{
+				  steps
+				  {
+						emailext(to: '1180241@isep.ipp.pt',
+              subject: "SUCCESS: Job '${env.JOB_NAME} [${env.BUILD_NUMBER}]'",
+              body: """<p>SUCCESS: Job '${env.JOB_NAME} [${env.BUILD_NUMBER}]':</p>
+              <p>Check console output at "<a href="${env.BUILD_URL}">${env.JOB_NAME} [${env.BUILD_NUMBER}]</a>"</p>""",)
+	        }
+				}
+				stage('Manual confirmation')
+				{
+					steps
+					{
+						input message: "Please perform a manual test and confirm by clicking the button below '${env.WORKSPACE}'", ok: 'Confirm'
+					}
+				}
+			}//parallel
+		}//Second parallel
+	}//stages
+	post
+	{
+		success
+		{
+			script{
+				if(isUnix()){
+					sh("git tag -a Asp94ProjectBuild#${env.BUILD_NUMBER}-SUCCESS -m 'Jenkins'")
+					sh 'cp project/CMS_asp/build/libs/*.war project/MoodleSubmission'
+					sh 'cp project/Jenkinsfile_Declarative project/MoodleSubmission'
+					fileOperations([fileZipOperation('project/MoodleSubmission')])
+					archiveArtifacts 'MoodleSubmission.zip'
+				}else{
+					bat("git tag -a ProjectBuild#${env.BUILD_NUMBER}-SUCCESS -m 'Jenkins'")
+				}
+			}
+		}
+		failure
+		{
+			script{
+				if(isUnix()){
+					sh("git tag -a Asp94ProjectBuild#${env.BUILD_NUMBER}-FAILURE -m 'Jenkins'")
+				}else{
+					bat("git tag -a LoneProjectBuild#${env.BUILD_NUMBER}-FAILURE -m 'Jenkins'")
+
+				}
+			}
+		}
+		always
+		{
+			script{
+				if(isUnix()){
+					sh 'git config credential.helper "/bin/bash ' + env.WORKSPACE + '/project/credential-helper.sh"'
+					withCredentials([[
+							$class: 'UsernamePasswordMultiBinding',
+							credentialsId: '3b6adc3a-09d5-4d09-b122-005475566af0',   //credentialsAsp:3b6adc3a-09d5-4d09-b122-005475566af0 CRED_Lone:94be0be5-068f-4bd8-b8f0-86b2fcd3f9cf
+							usernameVariable: 'GIT_USERNAME',
+							passwordVariable: 'GIT_PASSWORD']]){
+						sh('git push origin --tags')
+						sh 'git config --local --unset credential.helper' // Please keep this
+					}
+				}else{
+					bat('git config credential.helper "/bin/bash ' + env.WORKSPACE + '/project/credential-helper.sh"')
+					withCredentials([[
+							$class: 'UsernamePasswordMultiBinding',
+							credentialsId: '94be0be5-068f-4bd8-b8f0-86b2fcd3f9cf',   //credentialsAsp:3b6adc3a-09d5-4d09-b122-005475566af0 CRED_Lone:94be0be5-068f-4bd8-b8f0-86b2fcd3f9cf
+							usernameVariable: 'GIT_USERNAME',
+							passwordVariable: 'GIT_PASSWORD']]){
+						bat('git push origin --tags')
+					}
+				}
+
+			}
+		}
+	}
+}//pipeline

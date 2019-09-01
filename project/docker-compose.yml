@@ -1,0 +1,23 @@
+version: "3"
+services:
+
+  cms:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - 8080:8080
+    links:
+      - "db:cmsDB"  
+
+  db:
+    image: mysql:latest
+    volumes:
+      - ./MyCMSdump.sql:/docker-entrypoint-initdb.d/cmsdump.sql
+    environment:
+      MYSQL_ROOT_PASSWORD: 12qwaszx
+      MYSQL_DATABASE: cmsDB
+    security_opt:
+      - seccomp:unconfined
+    ports:
+      - 3306:3306

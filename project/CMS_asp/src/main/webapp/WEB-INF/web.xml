@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<web-app>
+
+  <!-- Default page to serve -->
+  <welcome-file-list>
+    <welcome-file>Showcase.html</welcome-file>
+  </welcome-file-list>
+
+  <!-- Servlets for the students -->
+  <servlet>
+      <servlet-name>studentsServiceServlet</servlet-name>
+      <servlet-class>pt.isep.cms.students.server.StudentsServiceImpl</servlet-class>
+  </servlet>
+
+  <servlet-mapping>
+      <servlet-name>studentsServiceServlet</servlet-name>
+      <url-pattern>/showcase/studentsService</url-pattern>
+  </servlet-mapping>
+
+  <!-- Servlets for the contacts -->
+  <servlet>
+    <servlet-name>contactsServiceServlet</servlet-name>
+    <servlet-class>pt.isep.cms.contacts.server.ContactsServiceImpl</servlet-class>
+  </servlet>
+
+  <servlet-mapping>
+    <servlet-name>contactsServiceServlet</servlet-name>
+    <url-pattern>/showcase/contactsService</url-pattern>
+  </servlet-mapping>
+  
+   <!-- Servlets for the classes -->
+  <servlet>
+    <servlet-name>modulesServiceServlet</servlet-name>
+    <servlet-class>pt.isep.cms.modules.server.ModulesServiceImpl</servlet-class>
+  </servlet>
+
+  <servlet-mapping>
+    <servlet-name>modulesServiceServlet</servlet-name>
+    <url-pattern>/showcase/modulesService</url-pattern>
+  </servlet-mapping>
+  
+</web-app>

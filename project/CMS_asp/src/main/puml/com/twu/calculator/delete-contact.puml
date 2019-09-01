@@ -1,0 +1,25 @@
+@startuml class-diagram.png
+skinparam handwritten true
+skinparam monochrome true
+skinparam packageStyle rect
+skinparam defaultFontName FG Virgil
+skinparam shadowing false
+
+actor User
+
+participant ContactsPresenter
+participant ContactsServiceAsync
+
+ContactsPresenter ->> ContactsPresenter : bind()
+User ->> ContactsPresenter: *selects contact*
+ContactsPresenter ->> ContactsPresenter : getClickedRow()
+User ->> ContactsPresenter: *presses delete*
+ContactsPresenter ->> ContactsPresenter : getSelectedRows()
+ContactsPresenter ->> ContactsServiceAsync : deleteContacts()
+ContactsPresenter ->> ContactsPresenter : setData()
+
+deactivate ContactsServiceAsync
+deactivate ContactsPresenter
+
+
+@enduml
