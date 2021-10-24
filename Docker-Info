@@ -1,0 +1,7 @@
+How to run Tomee-Web-App in Docker without docker-compose?
+
+1. docker run --rm --name cmsdb -d ndteam/tomee-cms:mysql
+
+2.docker run --link cmsdb:ndteam/tomee-cms -p 8080:8080 -d ndteam/tomee-cms:ndagent
+
+NOTE: Host Name is cmsdb
